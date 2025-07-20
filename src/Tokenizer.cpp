@@ -57,9 +57,12 @@ namespace HtmlParser
             case State::AfterAttributeValueUnquoted:
                 HandleAfterAttributeValueUnquotedState(c);
                 break;
-            case State::XML_DECLARATION:
+            case State::XMLDeclaration:
                 HandleXMLDeclarationState(c);
                 break;
+            case State::DOCTYPEDeclaration:
+                HandleDOCTYPEDeclarationState(c);
+                break;                
             case State::RawText:
                 HandleRawTextState(c);
                 break;
@@ -112,13 +115,13 @@ namespace HtmlParser
     {
         if (c == '!')
         {
-            // The tokenizer is prepared to handle DOCTYPE declarations, but the logic is not yet implemented.
+            m_CurrentState = State::DOCTYPEDeclaration;
             return;
         }
 
         if (c == '?')
         {
-            m_CurrentState = State::XML_DECLARATION;
+            m_CurrentState = State::XMLDeclaration;
             return;
         }
 
@@ -464,4 +467,12 @@ namespace HtmlParser
             m_CurrentState = State::Data;
         }
     }
+
+    void Tokenizer::HandleDOCTYPEDeclarationState(char c)
+    {
+        if (c == '>')
+        {
+            m_CurrentState = State::Data;
+        }
+    }  
 } // namespace HtmlParser

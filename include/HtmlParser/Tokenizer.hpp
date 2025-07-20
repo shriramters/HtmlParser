@@ -49,7 +49,8 @@ namespace HtmlParser
             AttributeValueUnquoted,
             AfterAttributeValueQuoted,
             AfterAttributeValueUnquoted,
-            XML_DECLARATION,
+            XMLDeclaration,
+            DOCTYPEDeclaration,
             RawText
         };
 
@@ -75,6 +76,7 @@ namespace HtmlParser
         void HandleAfterAttributeValueQuotedState(char c);
         void HandleAfterAttributeValueUnquotedState(char c);
         void HandleXMLDeclarationState(char c);
+        void HandleDOCTYPEDeclarationState(char c);      
         void HandleRawTextState(char c);
 
         std::string m_Input;
