@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <stack>
 
 #include "DOM.hpp"
 #include "Tokenizer.hpp"
@@ -25,6 +26,8 @@ namespace HtmlParser
         void InsertionModeInHead(const Token& Token);
         void InsertionModeAfterHead(const Token& Token);
         void InsertionModeInBody(const Token& Token);
+        void InsertionModeText(const Token& Token);      
+        void InsertionModeRawText(const Token& Token);
 
         void HandleError(const std::string& Message);
 
@@ -46,9 +49,11 @@ namespace HtmlParser
             AfterHead,
             InBody,
             Text,
+            RawText,
         };
 
-        InsertionMode InsertionMode;
+        InsertionMode CurrentInsertionMode() const;
+        std::stack<InsertionMode> InsertionModes;
 
         bool m_IsStrict = false;
         bool m_IsFragment = false;

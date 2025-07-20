@@ -10,20 +10,28 @@ namespace HtmlParser
     {
     }
 
+    Parser::InsertionMode Parser::CurrentInsertionMode() const
+    {
+        return InsertionModes.top();
+    }
+
     DOM Parser::Parse(const std::string& Input)
     {
         Tokenizer Instance(Input);
         Instance.Tokenize();
         const auto& Tokens = Instance.GetTokens();
+        while(!InsertionModes.empty()) {
+            InsertionModes.pop();
+        }
 
         Document = std::make_shared<Node>(NodeType::Document);
         OpenElements.clear();
         OpenElements.push_back(Document);
-        InsertionMode = InsertionMode::Initial;
+        InsertionModes.push(InsertionMode::Initial);
 
         for (const auto& Token : Tokens)
         {
-            switch (InsertionMode)
+            switch (CurrentInsertionMode())
             {
             case InsertionMode::Initial:
                 InsertionModeInitial(Token);
@@ -43,6 +51,12 @@ namespace HtmlParser
             case InsertionMode::InBody:
                 InsertionModeInBody(Token);
                 break;
+            case InsertionMode::Text:
+                InsertionModeText(Token);
+                break;                
+            case InsertionMode::RawText:
+                InsertionModeRawText(Token);
+                break;                
             default:
                 HandleError("Unsupported insertion mode");
                 break;
@@ -114,12 +128,13 @@ namespace HtmlParser
 
         if (Token.Type == TokenType::DOCTYPE)
         {
-            // The DOCTYPE token is handled, and the parser moves to the next state.
+            // Ignore for now
+            InsertionModes.top() = InsertionMode::BeforeHtml;
         }
         else
         {
             // If no DOCTYPE is found, the parser defaults to BeforeHtml mode and re-processes the token.
-            InsertionMode = InsertionMode::BeforeHtml;
+            InsertionModes.top() = InsertionMode::BeforeHtml;
             InsertionModeBeforeHtml(Token);
         }
     }
@@ -132,7 +147,7 @@ namespace HtmlParser
         if (Token.Type == TokenType::StartTag && Utils::ToLower(Token.Data) == "html")
         {
             InsertElement(Token);
-            InsertionMode = InsertionMode::BeforeHead;
+            InsertionModes.top() = InsertionMode::BeforeHead;
         }
         else
         {
@@ -141,7 +156,7 @@ namespace HtmlParser
             HtmlToken.Type = TokenType::StartTag;
             HtmlToken.Data = "html";
             InsertElement(HtmlToken);
-            InsertionMode = InsertionMode::BeforeHead;
+            InsertionModes.top() = InsertionMode::BeforeHead;
             InsertionModeBeforeHead(Token);
         }
     }
@@ -154,7 +169,7 @@ namespace HtmlParser
         if (Token.Type == TokenType::StartTag && Utils::ToLower(Token.Data) == "head")
         {
             InsertElement(Token);
-            InsertionMode = InsertionMode::InHead;
+            InsertionModes.top() = InsertionMode::InHead;
         }
         else
         {
@@ -163,7 +178,7 @@ namespace HtmlParser
             HeadToken.Type = TokenType::StartTag;
             HeadToken.Data = "head";
             InsertElement(HeadToken);
-            InsertionMode = InsertionMode::InHead;
+            InsertionModes.top() = InsertionMode::InHead;
             InsertionModeInHead(Token);
         }
     }
@@ -173,20 +188,71 @@ namespace HtmlParser
         if (Token.Type == TokenType::Character && isspace(Token.Data[0])) {
             return; // Ignore whitespace
         }
-        if (Token.Type == TokenType::EndTag && Utils::ToLower(Token.Data) == "head")
+        switch (Token.Type)
         {
-            OpenElements.pop_back();
-            InsertionMode = InsertionMode::AfterHead;
+        case TokenType::StartTag:
+        {
+            std::string tag = Utils::ToLower(Token.Data);
+            if (tag == "title")
+            {
+                InsertElement(Token);
+                InsertionModes.push(InsertionMode::Text);
+            }
+            else if (tag == "style" || tag == "script")
+            {
+                InsertElement(Token);
+                InsertionModes.push(InsertionMode::RawText);
+            }
+            else if (tag == "link" || tag == "meta" || tag == "base")
+            {
+                InsertElement(Token);
+                OpenElements.pop_back(); // Self-closing tags
+            }
+            else if (tag == "head")
+            {
+                HandleError("Unexpected <head> tag.");
+            }
+            else
+            {
+                // Any other start tag implicitly closes the head
+                OpenElements.pop_back();
+                InsertionModes.top() = InsertionMode::AfterHead;
+                InsertionModeAfterHead(Token);
+            }
+            break;
         }
-        else
+        case TokenType::EndTag:
         {
-            // For simplicity, we'll close <head> here
+            std::string tag = Utils::ToLower(Token.Data);
+            if (tag == "head")
+            {
+                OpenElements.pop_back();
+                InsertionModes.top() = InsertionMode::AfterHead;
+            }
+            else if (tag == "body" || tag == "html" || tag == "br")
+            {
+                // Implicitly close head and reprocess token in AfterHead
+                OpenElements.pop_back();
+                InsertionModes.top() = InsertionMode::AfterHead;
+                InsertionModeAfterHead(Token);
+            }
+            else
+            {
+                HandleError("Unexpected end tag in head: " + Token.Data);
+            }
+            break;
+        }
+        case TokenType::Comment:
+            // Comments can be ignored or inserted into the DOM
+            break;
+        default:
+            // For other tokens, implicitly close head and reprocess
             OpenElements.pop_back();
-            InsertionMode = InsertionMode::AfterHead;
+            InsertionModes.top() = InsertionMode::AfterHead;
             InsertionModeAfterHead(Token);
+            break;
         }
     }
-
     void Parser::InsertionModeAfterHead(const Token& Token)
     {
         if (Token.Type == TokenType::Character && isspace(Token.Data[0])) {
@@ -195,7 +261,7 @@ namespace HtmlParser
         if (Token.Type == TokenType::StartTag && Utils::ToLower(Token.Data) == "body")
         {
             InsertElement(Token);
-            InsertionMode = InsertionMode::InBody;
+            InsertionModes.top() = InsertionMode::InBody;
         }
         else
         {
@@ -204,7 +270,7 @@ namespace HtmlParser
             BodyToken.Type = TokenType::StartTag;
             BodyToken.Data = "body";
             InsertElement(BodyToken);
-            InsertionMode = InsertionMode::InBody;
+            InsertionModes.top() = InsertionMode::InBody;
             InsertionModeInBody(Token);
         }
     }
@@ -226,6 +292,44 @@ namespace HtmlParser
         else
         {
             // Handle other token types as needed
+        }
+    }
+
+    void Parser::InsertionModeRawText(const Token& token)
+    {
+        // The smart tokenizer gives us the script content as one big Character token.
+        // So, any token that is NOT the specific end tag should just have its text appended.
+        if (token.Type == TokenType::EndTag && Utils::ToLower(token.Data) == Utils::ToLower(CurrentNode()->Tag))
+        {
+            // We found the correct closing tag (e.g., </script>)
+            OpenElements.pop_back();
+            if (!InsertionModes.empty())
+            {
+                InsertionModes.pop();
+            }
+        }
+        else
+        {
+            // This is the script content. Append it.
+            InsertCharacter(token);
+        }
+    }
+
+    void Parser::InsertionModeText(const Token& token)
+    {
+        // The handler for <title>. Same simple logic.
+        if (token.Type == TokenType::EndTag && Utils::ToLower(token.Data) == "title")
+        {
+            OpenElements.pop_back();
+            if (!InsertionModes.empty())
+            {
+                InsertionModes.pop();
+            }
+        }
+        else
+        {
+            // This is the title content. Append it.
+            InsertCharacter(token);
         }
     }
 } // namespace HtmlParser

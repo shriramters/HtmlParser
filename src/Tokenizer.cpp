@@ -1,9 +1,11 @@
 #include <HtmlParser/Tokenizer.hpp>
+#include "Utilities.hpp"
 
 namespace HtmlParser
 {
     Tokenizer::Tokenizer(const std::string& InputStr) : m_Input(InputStr), m_Position(0), m_CurrentState(State::Data)
     {
+       m_AppropriateEndTag.clear();
     }
 
     void Tokenizer::Tokenize()
@@ -57,6 +59,9 @@ namespace HtmlParser
                 break;
             case State::XML_DECLARATION:
                 HandleXMLDeclarationState(c);
+                break;
+            case State::RawText:
+                HandleRawTextState(c);
                 break;
             }
         }
@@ -140,9 +145,27 @@ namespace HtmlParser
         }
     }
 
-    void Tokenizer::HandleTagNameState(char c)
+   void Tokenizer::HandleTagNameState(char c)
     {
-        if (IsWhitespace(c))
+        if (c == '>')
+        {
+            EmitToken(m_CurrentToken); // Emit the tag, e.g., <p> or <script>
+
+            std::string lower_tag_name = Utils::ToLower(m_CurrentToken.Data);
+            if (lower_tag_name == "script" || lower_tag_name == "style")
+            {
+                // If it's a script or style tag, set the appropriate end tag
+                // and switch to the special raw text state.
+                m_AppropriateEndTag = "</" + lower_tag_name;
+                m_CurrentState = State::RawText;
+            }
+            else
+            {
+                // Otherwise, go back to normal data processing.
+                m_CurrentState = State::Data;
+            }
+        }
+        else if (IsWhitespace(c))
         {
             m_CurrentState = State::BeforeAttributeName;
         }
@@ -150,15 +173,45 @@ namespace HtmlParser
         {
             m_CurrentState = State::SelfClosingStartTag;
         }
-        else if (c == '>')
-        {
-            EmitToken(m_CurrentToken);
-            m_CurrentState = State::Data;
-        }
         else
         {
             m_CurrentToken.Data += c;
         }
+    }
+
+    // 4. ADD THE NEW HandleRawTextState FUNCTION
+    void Tokenizer::HandleRawTextState(char c)
+    {
+        // In this state, we simply buffer characters until we see the start of our end tag.
+        ReconsumeChar(); // Re-process the current character in the logic below.
+
+        size_t end_tag_pos = m_Input.find(m_AppropriateEndTag, m_Position);
+
+        std::string raw_text;
+        if (end_tag_pos != std::string::npos)
+        {
+            // We found the end tag. The content is everything up to it.
+            raw_text = m_Input.substr(m_Position, end_tag_pos - m_Position);
+            m_Position = end_tag_pos; // Move our position to the start of the end tag.
+        }
+        else
+        {
+            // No end tag found. The rest of the document is the content.
+            raw_text = m_Input.substr(m_Position);
+            m_Position = m_Input.size();
+        }
+
+        if (!raw_text.empty())
+        {
+            Token text_token;
+            text_token.Type = TokenType::Character;
+            text_token.Data = raw_text;
+            EmitToken(text_token);
+        }
+
+        // Done with raw text mode. Return to the normal data state.
+        // The main loop will then naturally tokenize the `</script>` or `</style>` tag.
+        m_CurrentState = State::Data;
     }
 
     void Tokenizer::HandleEndTagOpenState(char c)

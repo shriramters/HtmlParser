@@ -49,7 +49,8 @@ namespace HtmlParser
             AttributeValueUnquoted,
             AfterAttributeValueQuoted,
             AfterAttributeValueUnquoted,
-            XML_DECLARATION
+            XML_DECLARATION,
+            RawText
         };
 
         void EmitToken(const Token& Token);
@@ -74,6 +75,7 @@ namespace HtmlParser
         void HandleAfterAttributeValueQuotedState(char c);
         void HandleAfterAttributeValueUnquotedState(char c);
         void HandleXMLDeclarationState(char c);
+        void HandleRawTextState(char c);
 
         std::string m_Input;
         size_t m_Position;
@@ -84,5 +86,6 @@ namespace HtmlParser
         std::string m_CurrentAttributeValue;
 
         std::vector<Token> m_Tokens;
+        std::string m_AppropriateEndTag;
     };
 } // namespace HtmlParser
