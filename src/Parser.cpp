@@ -106,12 +106,19 @@ namespace HtmlParser
 
     void Parser::InsertionModeInitial(const Token& Token)
     {
+        //This will be ignored and the parser will move to the next token
+        if (Token.Type == TokenType::XML_DECLARATION)
+        {
+            return;
+        }
+
         if (Token.Type == TokenType::DOCTYPE)
         {
-            // Ignore for now
+            // The DOCTYPE token is handled, and the parser moves to the next state.
         }
         else
         {
+            // If no DOCTYPE is found, the parser defaults to BeforeHtml mode and re-processes the token.
             InsertionMode = InsertionMode::BeforeHtml;
             InsertionModeBeforeHtml(Token);
         }

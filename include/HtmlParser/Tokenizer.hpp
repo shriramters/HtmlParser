@@ -8,12 +8,13 @@ namespace HtmlParser
 {
     enum class TokenType
     {
-        DOCTYPE,
-        StartTag,
-        EndTag,
-        Comment,
-        Character,
-        EOFToken
+        XML_DECLARATION, //Represents an XML declaration, e.g., <?xml version="1.0"?>.
+        StartTag,      //Represents a start tag, e.g., <div>.
+        EndTag,        //Represents an end tag, e.g., </div>.
+        DOCTYPE,       //Represents a DOCTYPE declaration, e.g., <!DOCTYPE html>.
+        Comment,       //Represents a comment, e.g., <!-- This is a comment -->.
+        Character,     //Represents character data.
+        EndOfFile      //Represents the end of the input stream.
     };
 
     struct Token
@@ -48,6 +49,7 @@ namespace HtmlParser
             AttributeValueUnquoted,
             AfterAttributeValueQuoted,
             AfterAttributeValueUnquoted,
+            XML_DECLARATION
         };
 
         void EmitToken(const Token& Token);
@@ -71,6 +73,7 @@ namespace HtmlParser
         void HandleAttributeValueUnquotedState(char c);
         void HandleAfterAttributeValueQuotedState(char c);
         void HandleAfterAttributeValueUnquotedState(char c);
+        void HandleXMLDeclarationState(char c);
 
         std::string m_Input;
         size_t m_Position;

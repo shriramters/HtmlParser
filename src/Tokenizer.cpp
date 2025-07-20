@@ -55,6 +55,9 @@ namespace HtmlParser
             case State::AfterAttributeValueUnquoted:
                 HandleAfterAttributeValueUnquotedState(c);
                 break;
+            case State::XML_DECLARATION:
+                HandleXMLDeclarationState(c);
+                break;
             }
         }
     }
@@ -102,6 +105,18 @@ namespace HtmlParser
 
     void Tokenizer::HandleTagOpenState(char c)
     {
+        if (c == '!')
+        {
+            // The tokenizer is prepared to handle DOCTYPE declarations, but the logic is not yet implemented.
+            return;
+        }
+
+        if (c == '?')
+        {
+            m_CurrentState = State::XML_DECLARATION;
+            return;
+        }
+
         if (c == '/')
         {
             m_CurrentState = State::EndTagOpen;
@@ -386,6 +401,14 @@ namespace HtmlParser
             // Parse error
             m_CurrentState = State::BeforeAttributeName;
             ReconsumeChar();
+        }
+    }
+
+    void Tokenizer::HandleXMLDeclarationState(char c)
+    {
+        if (c == '>')
+        {
+            m_CurrentState = State::Data;
         }
     }
 } // namespace HtmlParser
